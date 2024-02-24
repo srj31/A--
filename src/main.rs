@@ -6,6 +6,7 @@ use std::process::exit;
 
 mod lexer;
 mod log;
+mod parser;
 
 use log::log_message::print_code_error;
 use log::log_message::print_error_msg;

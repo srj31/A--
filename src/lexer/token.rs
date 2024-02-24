@@ -2,11 +2,14 @@ use std::fmt;
 
 use super::token_type;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     String(String),
     Int(i32),
+    Boolean(bool),
     Float(f64),
+    Nil,
+    Identifier(String),
 }
 
 impl fmt::Display for Literal {
@@ -15,16 +18,19 @@ impl fmt::Display for Literal {
             Literal::String(s) => write!(f, "{}", s),
             Literal::Int(i) => write!(f, "{}", i),
             Literal::Float(fl) => write!(f, "{}", fl),
+            Literal::Boolean(b) => write!(f, "{}", b),
+            Literal::Nil => write!(f, "nil"),
+            Literal::Identifier(i) => write!(f, "{}", i),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Token {
-    token_type: token_type::TokenType,
-    lexeme: String,
-    literal: Option<Literal>,
-    line: u32,
+    pub token_type: token_type::TokenType,
+    pub lexeme: String,
+    pub literal: Option<Literal>,
+    pub line: u32,
 }
 
 impl Token {
@@ -40,6 +46,10 @@ impl Token {
             literal,
             line,
         }
+    }
+
+    pub fn get_lexeme(&self) -> String {
+        self.lexeme.clone()
     }
 }
 

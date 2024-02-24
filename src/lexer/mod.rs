@@ -1,3 +1,3 @@
-mod token_type;
+pub mod token_type;
 pub mod scanner;
-mod token;
+pub mod token;
