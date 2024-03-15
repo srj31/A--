@@ -6,11 +6,13 @@ use crate::{
 };
 
 use super::{
+    environment,
     expr::{Acceptor, Expr, Operator, Visitor},
     stmt::{self, Acceptor as StmtAcceptor, Stmt},
 };
 
-enum Object {
+#[derive(Clone)]
+pub enum Object {
     String(String),
     Int(i32),
     Boolean(bool),
@@ -26,13 +28,15 @@ impl fmt::Display for Object {
             Object::Int(i) => write!(f, "{}", i),
             Object::Boolean(b) => write!(f, "{}", b),
             Object::Float(fl) => write!(f, "{}", fl),
-            Object::Nil => write!(f, "nil"),
+            Object::Nil => write!(f, "why am i nil?"),
             Object::Identifier(i) => write!(f, "{}", i),
         }
     }
 }
 
-pub struct Interpreter;
+pub struct Interpreter {
+    environment: environment::Environment,
+}
 struct InterpreterError {
     message: String,
     token: Token,
@@ -40,9 +44,11 @@ struct InterpreterError {
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self
+        Self {
+            environment: environment::Environment::new(),
+        }
     }
-    pub fn interpret(&self, stmts: &Vec<Stmt>) {
+    pub fn interpret(&mut self, stmts: &Vec<Stmt>) {
         for stmt in stmts {
             match self.execute(stmt) {
                 Ok(_) => {}
@@ -53,37 +59,64 @@ impl Interpreter {
         }
     }
 
-    fn evaluate(&self, expr: &Expr) -> Result<Object> {
+    fn evaluate(&mut self, expr: &Expr) -> Result<Object> {
         expr.accept(self)
     }
 
-    fn execute(&self, stmt: &Stmt) -> Result<()> {
+    fn execute(&mut self, stmt: &Stmt) -> Result<()> {
         stmt.accept(self)
+    }
+
+    fn execute_block(&mut self, stmts: &Vec<Stmt>, env: environment::Environment) {
+        let previous = self.environment.clone();
+        self.environment = env;
+        for stmt in stmts {
+            match self.execute(stmt) {
+                Ok(_) => {}
+                Err(err) => {
+                    log::log_message::print_code_error(err.token.line, &err.message);
+                }
+            }
+        }
+        self.environment = previous;
     }
 }
 
 type Result<T> = std::result::Result<T, InterpreterError>;
 
 impl stmt::Visitor<Result<()>> for Interpreter {
-    fn visit_expr(&self, expr: &Expr) -> Result<()> {
+    fn visit_expr(&mut self, expr: &Expr) -> Result<()> {
         self.evaluate(expr)?;
         Ok(())
     }
-    fn visit_print(&self, expr: &Expr) -> Result<()> {
+    fn visit_print(&mut self, expr: &Expr) -> Result<()> {
         let value = self.evaluate(expr)?;
         println!("{}", value);
         Ok(())
     }
 
-    fn visit_var(&self, name: &str, initializer: &Expr) -> Result<()> {
-        let value = self.evaluate(initializer)?;
-        println!("{} = {}", name, value);
+    fn visit_var(&mut self, name: &Token, initializer: &Option<Expr>) -> Result<()> {
+        match initializer {
+            Some(expr) => {
+                let value = self.evaluate(expr)?;
+                self.environment.define(name.lexeme.clone(), value);
+            }
+            None => self.environment.define(name.lexeme.clone(), Object::Nil),
+        }
+        Ok(())
+    }
+
+    fn visit_block(&mut self, stmts: &Vec<Stmt>) -> Result<()> {
+        self.execute_block(
+            stmts,
+            environment::Environment::new_enclosed(self.environment.clone()),
+        );
         Ok(())
     }
 }
 
 impl Visitor<Result<Object>> for Interpreter {
-    fn visit_literal(&self, expr: &Literal) -> Result<Object> {
+    fn visit_literal(&mut self, expr: &Literal) -> Result<Object> {
         match expr {
             Literal::String(s) => Ok(Object::String(s.clone())),
             Literal::Int(i) => Ok(Object::Int(*i)),
@@ -94,7 +127,7 @@ impl Visitor<Result<Object>> for Interpreter {
         }
     }
 
-    fn visit_unary(&self, operator: &Operator, right: &Expr) -> Result<Object> {
+    fn visit_unary(&mut self, operator: &Operator, right: &Expr) -> Result<Object> {
         let right = right.accept(self);
         match operator {
             Operator::Bang => match right? {
@@ -110,11 +143,11 @@ impl Visitor<Result<Object>> for Interpreter {
         }
     }
 
-    fn visit_grouping(&self, expression: &Expr) -> Result<Object> {
+    fn visit_grouping(&mut self, expression: &Expr) -> Result<Object> {
         expression.accept(self)
     }
 
-    fn visit_binary(&self, left: &Expr, operator: &Operator, right: &Expr) -> Result<Object> {
+    fn visit_binary(&mut self, left: &Expr, operator: &Operator, right: &Expr) -> Result<Object> {
         let left = left.accept(self)?;
         let right = right.accept(self)?;
         match operator {
@@ -161,5 +194,15 @@ impl Visitor<Result<Object>> for Interpreter {
             },
             _ => Ok(Object::Nil),
         }
+    }
+
+    fn visit_variable(&mut self, name: &Token) -> Result<Object> {
+        Ok(self.environment.get(name))
+    }
+
+    fn visit_assignment(&mut self, name: &Token, value: &Expr) -> Result<Object> {
+        let value = value.accept(self)?;
+        self.environment.assign(name, value.clone());
+        Ok(value)
     }
 }

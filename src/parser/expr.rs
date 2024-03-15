@@ -6,18 +6,24 @@ use crate::lexer::{
 };
 
 pub trait Visitor<T> {
-    fn visit_binary(&self, left: &Expr, operator: &Operator, right: &Expr) -> T;
-    fn visit_grouping(&self, expression: &Expr) -> T;
-    fn visit_literal(&self, expr: &token::Literal) -> T;
-    fn visit_unary(&self, operator: &Operator, right: &Expr) -> T;
+    fn visit_binary(&mut self, left: &Expr, operator: &Operator, right: &Expr) -> T;
+    fn visit_grouping(&mut self, expression: &Expr) -> T;
+    fn visit_literal(&mut self, expr: &token::Literal) -> T;
+    fn visit_unary(&mut self, operator: &Operator, right: &Expr) -> T;
+    fn visit_variable(&mut self, name: &Token) -> T;
+    fn visit_assignment(&mut self, name: &Token, value: &Expr) -> T;
 }
 
 pub trait Acceptor<T> {
-    fn accept(&self, visitor: &dyn Visitor<T>) -> T;
+    fn accept(&self, visitor: &mut dyn Visitor<T>) -> T;
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
+    Assignment {
+        name: token::Token,
+        value: Box<Expr>,
+    },
     Binary {
         left: Box<Expr>,
         operator: Operator,
@@ -33,11 +39,15 @@ pub enum Expr {
     Literal {
         value: token::Literal,
     },
+    Variable {
+        name: token::Token,
+    },
 }
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Expr::Assignment { name, value } => write!(f, "({} = {})", name.lexeme, value),
             Expr::Binary {
                 left,
                 operator,
@@ -46,6 +56,7 @@ impl fmt::Display for Expr {
             Expr::Unary { operator, right } => write!(f, "({}{})", operator, right),
             Expr::Grouping { expression } => write!(f, "({})", expression),
             Expr::Literal { value } => write!(f, "{}", value),
+            Expr::Variable { name } => write!(f, "{}", name.lexeme),
         }
     }
 }
@@ -103,8 +114,9 @@ impl fmt::Display for Operator {
 }
 
 impl<T> Acceptor<T> for Expr {
-    fn accept(&self, visitor: &dyn Visitor<T>) -> T {
+    fn accept(&self, visitor: &mut dyn Visitor<T>) -> T {
         match self {
+            Expr::Assignment { name, value } => visitor.visit_assignment(name, value),
             Expr::Binary {
                 left,
                 operator,
@@ -113,6 +125,7 @@ impl<T> Acceptor<T> for Expr {
             Expr::Unary { operator, right } => visitor.visit_unary(operator, right),
             Expr::Grouping { expression } => visitor.visit_grouping(expression),
             Expr::Literal { value } => visitor.visit_literal(value),
+            Expr::Variable { name } => visitor.visit_variable(name),
         }
     }
 }

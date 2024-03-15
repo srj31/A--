@@ -51,14 +51,30 @@ impl Parser {
 
     fn declaration(&mut self) -> Result<Stmt> {
         if self.match_token(vec![token_type::TokenType::VAR]) {
-            todo!()
+            return self.var_declaration();
         }
         self.statement()
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt> {
+        let name = self.consume(token_type::TokenType::IDENTIFIER, "Expect variable name.")?;
+        let mut initializer = None;
+        if self.match_token(vec![token_type::TokenType::EQUAL]) {
+            initializer = Some(self.expression()?);
+        }
+        self.consume(
+            token_type::TokenType::SEMICOLON,
+            "Expect ';' after variable declaration.",
+        )?;
+        Ok(Stmt::Var { name, initializer })
     }
 
     fn statement(&mut self) -> Result<Stmt> {
         if self.match_token(vec![token_type::TokenType::PRINT]) {
             return self.print_statement();
+        }
+        if self.match_token(vec![token_type::TokenType::LEFT_BRACE]) {
+            return self.block_statement();
         }
         self.expression_statement()
     }
@@ -73,6 +89,18 @@ impl Parser {
         let expr = self.expression()?;
         self.consume(token_type::TokenType::SEMICOLON, "Expect ';' after value.")?;
         Ok(Stmt::Expr(expr))
+    }
+
+    fn block_statement(&mut self) -> Result<Stmt> {
+        let mut statements = Vec::new();
+        while !self.check(token_type::TokenType::RIGHT_BRACE) && !self.is_at_end() {
+            statements.push(self.declaration()?);
+        }
+        self.consume(
+            token_type::TokenType::RIGHT_BRACE,
+            "Expect '}' after block.",
+        )?;
+        Ok(Stmt::Block { statements })
     }
 
     fn synchronize(&mut self) {
@@ -98,7 +126,7 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expr> {
-        self.equality()
+        self.assignment()
     }
 
     fn match_token(&mut self, types: Vec<token_type::TokenType>) -> bool {
@@ -135,6 +163,26 @@ impl Parser {
 
     fn peek(&mut self) -> &Token {
         self.tokens.get(self.current).unwrap()
+    }
+
+    fn assignment(&mut self) -> Result<Expr> {
+        let expr = self.equality()?;
+        if self.match_token(vec![token_type::TokenType::EQUAL]) {
+            let equals = self.previous().clone();
+            let value = self.assignment()?;
+            match expr {
+                Expr::Variable { name } => Ok(Expr::Assignment {
+                    name,
+                    value: Box::new(value),
+                }),
+                _ => Err(ParserError {
+                    message: "Invalid assignment target.".to_string(),
+                    token: equals,
+                }),
+            }
+        } else {
+            Ok(expr)
+        }
     }
 
     fn equality(&mut self) -> Result<Expr> {
@@ -237,6 +285,12 @@ impl Parser {
         if self.match_token(vec![token_type::TokenType::NIL]) {
             return Ok(Expr::Literal {
                 value: token::Literal::Nil,
+            });
+        }
+
+        if self.match_token(vec![token_type::TokenType::IDENTIFIER]) {
+            return Ok(Expr::Variable {
+                name: self.previous().clone(),
             });
         }
 
