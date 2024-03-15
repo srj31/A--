@@ -8,9 +8,9 @@ use crate::{
     log,
 };
 
-use super::expr::Expr;
+use super::{expr::Expr, stmt::Stmt};
 
-struct Parser {
+pub struct Parser {
     current: usize,
     tokens: Vec<Token>,
 }
@@ -34,14 +34,45 @@ impl Parser {
         Self { current: 0, tokens }
     }
 
-    pub fn parse(&mut self) -> Option<Expr> {
-        match self.expression() {
-            Ok(expr) => Some(expr),
-            Err(err) => {
-                log::log_message::print_code_error(err.token.line, &err.message);
-                None
+    pub fn parse(&mut self) -> Vec<Stmt> {
+        let mut stmts = Vec::new();
+        while !self.is_at_end() {
+            match self.declaration() {
+                Ok(stmt) => stmts.push(stmt),
+                Err(err) => {
+                    log::log_message::print_code_error(err.token.line, &err.message);
+                    self.synchronize();
+                }
             }
         }
+
+        stmts
+    }
+
+    fn declaration(&mut self) -> Result<Stmt> {
+        if self.match_token(vec![token_type::TokenType::VAR]) {
+            todo!()
+        }
+        self.statement()
+    }
+
+    fn statement(&mut self) -> Result<Stmt> {
+        if self.match_token(vec![token_type::TokenType::PRINT]) {
+            return self.print_statement();
+        }
+        self.expression_statement()
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt> {
+        let expr = self.expression()?;
+        self.consume(token_type::TokenType::SEMICOLON, "Expect ';' after value.")?;
+        Ok(Stmt::Print(expr))
+    }
+
+    fn expression_statement(&mut self) -> Result<Stmt> {
+        let expr = self.expression()?;
+        self.consume(token_type::TokenType::SEMICOLON, "Expect ';' after value.")?;
+        Ok(Stmt::Expr(expr))
     }
 
     fn synchronize(&mut self) {
@@ -282,6 +313,6 @@ mod tests {
             }),
         };
 
-        assert_eq!(Parser::new(tokens).parse(), Some(expr));
+        assert_eq!(Parser::new(tokens).parse(), [Stmt::Expr(expr)]);
     }
 }

@@ -10,6 +10,7 @@ mod parser;
 
 use log::log_message::print_code_error;
 use log::log_message::print_error_msg;
+use parser::interpreter::Interpreter;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -42,11 +43,13 @@ fn execute_prompt() {
 
 fn execute(contents: String) {
     let mut scanner = lexer::scanner::Scanner::new(&contents);
-    let tokens = scanner.scan_tokens();
+    let tokens = scanner.scan_tokens().clone();
 
-    for token in tokens {
-        println!("{:?}", token);
-    }
+    let mut parser = parser::parser::Parser::new(tokens);
+    let stmts = parser.parse();
+    let interpreter = parser::interpreter::Interpreter::new();
+
+    interpreter.interpret(&stmts);
 }
 
 fn is_end(line: &str) -> bool {

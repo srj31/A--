@@ -35,6 +35,21 @@ pub enum Expr {
     },
 }
 
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expr::Binary {
+                left,
+                operator,
+                right,
+            } => write!(f, "({} {} {})", left, operator, right),
+            Expr::Unary { operator, right } => write!(f, "({}{})", operator, right),
+            Expr::Grouping { expression } => write!(f, "({})", expression),
+            Expr::Literal { value } => write!(f, "{}", value),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operator {
     Bang,
