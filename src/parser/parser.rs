@@ -70,6 +70,12 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt> {
+        if self.match_token(vec![token_type::TokenType::WHILE]) {
+            return self.while_statement();
+        }
+        if self.match_token(vec![token_type::TokenType::IF]) {
+            return self.if_statement();
+        }
         if self.match_token(vec![token_type::TokenType::PRINT]) {
             return self.print_statement();
         }
@@ -77,6 +83,43 @@ impl Parser {
             return self.block_statement();
         }
         self.expression_statement()
+    }
+
+    fn while_statement(&mut self) -> Result<Stmt> {
+        self.consume(
+            token_type::TokenType::LEFT_PAREN,
+            "Expect '(' after 'while'.",
+        )?;
+        let condition = self.expression()?;
+
+        self.consume(
+            token_type::TokenType::RIGHT_PAREN,
+            "Expect ')' after while condition.",
+        )?;
+
+        let body = Box::new(self.declaration()?);
+
+        Ok(Stmt::While { condition, body })
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt> {
+        self.consume(token_type::TokenType::LEFT_PAREN, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(
+            token_type::TokenType::RIGHT_PAREN,
+            "Expect ')' after if condition.",
+        )?;
+        let then_branch = self.statement()?;
+        let else_branch = if self.match_token(vec![token_type::TokenType::ELSE]) {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+        Ok(Stmt::If {
+            condition,
+            then_branch: Box::new(then_branch),
+            else_branch,
+        })
     }
 
     fn print_statement(&mut self) -> Result<Stmt> {
@@ -166,7 +209,7 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr> {
-        let expr = self.equality()?;
+        let expr = self.or()?;
         if self.match_token(vec![token_type::TokenType::EQUAL]) {
             let equals = self.previous().clone();
             let value = self.assignment()?;
@@ -183,6 +226,34 @@ impl Parser {
         } else {
             Ok(expr)
         }
+    }
+
+    fn or(&mut self) -> Result<Expr> {
+        let mut expr = self.and()?;
+        while self.match_token(vec![token_type::TokenType::OR]) {
+            let operator = self.previous().clone();
+            let right = self.and()?;
+            expr = Expr::Logical {
+                left: Box::new(expr),
+                operator: operator.into(),
+                right: Box::new(right),
+            };
+        }
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expr> {
+        let mut expr = self.equality()?;
+        while self.match_token(vec![token_type::TokenType::AND]) {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+            expr = Expr::Logical {
+                left: Box::new(expr),
+                operator: operator.into(),
+                right: Box::new(right),
+            };
+        }
+        Ok(expr)
     }
 
     fn equality(&mut self) -> Result<Expr> {

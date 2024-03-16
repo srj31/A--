@@ -9,6 +9,13 @@ pub trait Visitor<T> {
     fn visit_print(&mut self, expr: &Expr) -> T;
     fn visit_var(&mut self, name: &Token, initializer: &Option<Expr>) -> T;
     fn visit_block(&mut self, statements: &Vec<Stmt>) -> T;
+    fn visit_if(
+        &mut self,
+        condition: &Expr,
+        then_branch: &Stmt,
+        else_branch: &Option<Box<Stmt>>,
+    ) -> T;
+    fn visit_while(&mut self, condition: &Expr, body: &Stmt) -> T;
 }
 
 pub trait Acceptor<T> {
@@ -26,6 +33,15 @@ pub enum Stmt {
     Block {
         statements: Vec<Stmt>,
     },
+    If {
+        condition: Expr,
+        then_branch: Box<Stmt>,
+        else_branch: Option<Box<Stmt>>,
+    },
+    While {
+        condition: Expr,
+        body: Box<Stmt>,
+    },
 }
 
 impl<T> Acceptor<T> for Stmt {
@@ -35,6 +51,12 @@ impl<T> Acceptor<T> for Stmt {
             Stmt::Print(expr) => visitor.visit_print(expr),
             Stmt::Var { name, initializer } => visitor.visit_var(&name, initializer),
             Stmt::Block { statements } => visitor.visit_block(statements),
+            Stmt::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => visitor.visit_if(condition, then_branch, else_branch),
+            Stmt::While { condition, body } => visitor.visit_while(condition, body),
         }
     }
 }
@@ -56,6 +78,21 @@ impl fmt::Display for Stmt {
                         .join("\n")
                 )
             }
+            Stmt::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => write!(
+                f,
+                "if {} {} {}",
+                condition,
+                then_branch,
+                else_branch
+                    .as_ref()
+                    .map_or("".to_string(), |b| b.to_string())
+            ),
+
+            Stmt::While { condition, body } => write!(f, "while ({}) {} ", condition, body),
         }
     }
 }

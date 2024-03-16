@@ -44,7 +44,7 @@ impl Environment {
             Some(v) => *v = expr,
             None => {
                 if let Some(ref mut e) = self.enclosing {
-                    e.assign(var, expr);
+                    return e.assign(var, expr);
                 }
                 log::log_message::print_code_error(
                     var.line,

@@ -21,6 +21,19 @@ pub enum Object {
     Identifier(String),
 }
 
+impl Object {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Object::Nil => false,
+            Object::Boolean(b) => *b,
+            Object::Int(i) => *i != 0,
+            Object::Float(fl) => *fl != 0.0,
+            Object::String(s) => !s.is_empty(),
+            _ => true,
+        }
+    }
+}
+
 impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -78,6 +91,9 @@ impl Interpreter {
                 }
             }
         }
+        /*
+         * TODO: the environment reveresed is not correct since the update inside the block is lost
+         */
         self.environment = previous;
     }
 }
@@ -111,6 +127,27 @@ impl stmt::Visitor<Result<()>> for Interpreter {
             stmts,
             environment::Environment::new_enclosed(self.environment.clone()),
         );
+        Ok(())
+    }
+
+    fn visit_if(
+        &mut self,
+        condition: &Expr,
+        then_branch: &Stmt,
+        else_branch: &Option<Box<Stmt>>,
+    ) -> Result<()> {
+        if self.evaluate(condition)?.is_truthy() {
+            self.execute(then_branch)?;
+        } else if let Some(else_branch) = else_branch {
+            self.execute(else_branch)?;
+        }
+        Ok(())
+    }
+
+    fn visit_while(&mut self, condition: &Expr, body: &Stmt) -> Result<()> {
+        while self.evaluate(condition)?.is_truthy() {
+            self.execute(body)?;
+        }
         Ok(())
     }
 }
@@ -204,5 +241,26 @@ impl Visitor<Result<Object>> for Interpreter {
         let value = value.accept(self)?;
         self.environment.assign(name, value.clone());
         Ok(value)
+    }
+
+    fn visit_logical(&mut self, left: &Expr, operator: &Operator, right: &Expr) -> Result<Object> {
+        let left = left.accept(self)?;
+        match operator {
+            Operator::Or => {
+                if left.is_truthy() {
+                    Ok(left)
+                } else {
+                    right.accept(self)
+                }
+            }
+            Operator::And => {
+                if !left.is_truthy() {
+                    Ok(left)
+                } else {
+                    right.accept(self)
+                }
+            }
+            _ => Ok(Object::Nil),
+        }
     }
 }

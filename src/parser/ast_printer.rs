@@ -44,6 +44,10 @@ impl Visitor<String> for AstPrinter {
     fn visit_assignment(&mut self, name: &Token, value: &Expr) -> String {
         self.parenthesize(format!("= {}", name.lexeme), vec![value.clone()])
     }
+
+    fn visit_logical(&mut self, left: &Expr, operator: &Operator, right: &Expr) -> String {
+        self.parenthesize(operator.to_string(), vec![left.clone(), right.clone()])
+    }
 }
 
 #[cfg(test)]

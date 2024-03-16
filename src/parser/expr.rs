@@ -12,6 +12,7 @@ pub trait Visitor<T> {
     fn visit_unary(&mut self, operator: &Operator, right: &Expr) -> T;
     fn visit_variable(&mut self, name: &Token) -> T;
     fn visit_assignment(&mut self, name: &Token, value: &Expr) -> T;
+    fn visit_logical(&mut self, left: &Expr, operator: &Operator, right: &Expr) -> T;
 }
 
 pub trait Acceptor<T> {
@@ -42,6 +43,11 @@ pub enum Expr {
     Variable {
         name: token::Token,
     },
+    Logical {
+        left: Box<Expr>,
+        operator: Operator,
+        right: Box<Expr>,
+    },
 }
 
 impl fmt::Display for Expr {
@@ -57,6 +63,11 @@ impl fmt::Display for Expr {
             Expr::Grouping { expression } => write!(f, "({})", expression),
             Expr::Literal { value } => write!(f, "{}", value),
             Expr::Variable { name } => write!(f, "{}", name.lexeme),
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => write!(f, "({} {} {})", left, operator, right),
         }
     }
 }
@@ -74,6 +85,8 @@ pub enum Operator {
     LessEqual,
     EqualEqual,
     BangEqual,
+    Or,
+    And,
 }
 
 impl From<Token> for Operator {
@@ -90,6 +103,8 @@ impl From<Token> for Operator {
             token_type::TokenType::LESS_EQUAL => Operator::LessEqual,
             token_type::TokenType::EQUAL_EQUAL => Operator::EqualEqual,
             token_type::TokenType::BANG_EQUAL => Operator::BangEqual,
+            token_type::TokenType::OR => Operator::Or,
+            token_type::TokenType::AND => Operator::And,
             _ => unreachable!(),
         }
     }
@@ -109,6 +124,8 @@ impl fmt::Display for Operator {
             Operator::LessEqual => write!(f, "<="),
             Operator::EqualEqual => write!(f, "=="),
             Operator::BangEqual => write!(f, "!="),
+            Operator::Or => write!(f, "or"),
+            Operator::And => write!(f, "and"),
         }
     }
 }
@@ -126,6 +143,11 @@ impl<T> Acceptor<T> for Expr {
             Expr::Grouping { expression } => visitor.visit_grouping(expression),
             Expr::Literal { value } => visitor.visit_literal(value),
             Expr::Variable { name } => visitor.visit_variable(name),
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => visitor.visit_logical(left, operator, right),
         }
     }
 }
